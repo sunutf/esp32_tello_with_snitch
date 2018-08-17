@@ -7,8 +7,8 @@
 #include <FS.h>
 #include <SPIFFS.h>
 
-
-#define FROM_SPIFFS
+#define CMD_FROM_SNITCH
+#define CMD_FROM_SPIFFS
 // -- literal
 // pin
 const int buttonPin = 13;
@@ -138,9 +138,16 @@ void loop() {
     {
       digitalWrite(ledPin, HIGH);
       buttonState = digitalRead(buttonPin);
-      if (buttonState == LOW) {
+      
+      #ifdef CMD_FROM_SPIFFS
+        if (buttonState == LOW) {
+          controlTelloProcess();
+        }
+      #endif
+
+      #ifdef CMD_FROM_SNITCH
         controlTelloProcess();
-      }
+      #endif
     } else {
       digitalWrite(ledPin, LOW);
     }
@@ -184,7 +191,7 @@ void selectFunction(String packet)
 // -- client(controll Tello) mode process function
 void controlTelloProcess(void)
 {
-  #ifndef FROM_SPIFFS
+  #ifdef CMD_FROM_SNITCH
   String fileData = readTextFile("DRONECMD.txt");
   int fileDataLen = fileData.length();
   int indexPos = 0;
@@ -225,7 +232,7 @@ void controlTelloProcess(void)
   Serial.println("finish!");
   #endif
 
-  #ifdef FROM_SPIFFS
+  #ifdef CMD_FROM_SPIFFS
   String fileData = readTextFile("DRONECMD.txt");
   int fileDataLen = fileData.length();
   int indexPos = 0;
