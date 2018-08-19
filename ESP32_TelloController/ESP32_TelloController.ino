@@ -6,17 +6,18 @@
 #include <WiFiUdp.h>
 #include <FS.h>
 #include <SPIFFS.h>
+#include "BluetoothSerial.h"
 
 #define CMD_FROM_SNITCH
-#define CMD_FROM_SPIFFS
+// #define CMD_FROM_SPIFFS
 // -- literal
 // pin
 const int buttonPin = 13;
 const int ledPin = 12;
 
 // WiFi - AP mode (for self)
-String ssidAp = "TELLO-Controller";
-String passwordAp = "tellocon";
+String ssidAp = "TELLO-AA0558";
+String passwordAp = "0000";
 const IPAddress ipAp(192, 168, 4, 1);
 const IPAddress gatewayAp = ipAp;
 const IPAddress subnetAp(255, 255, 255, 0);
@@ -28,7 +29,10 @@ String ssidTello = "TELLO-XXXXXX";  // overridden later
 String passwordTello = "password";  // overridden later
 String ipTello = "192.168.10.1";
 const int udpPortTello = 8889;
- 
+
+char c_temp;
+String s_command = "";
+
 // function prototype
 void writeSsid(String arg);
 void writePass(String arg);
@@ -67,10 +71,16 @@ bool connectedTello = false;
 // other
 bool settingModeEnable = false;
 
+//BLE
+BluetoothSerial SerialBT;
+
 // -- setup function
 void setup() {
   // serial
   Serial.begin(115200);
+  Serial2.begin(115200); // HardwareSerial UART2 RX/TX
+  SerialBT.begin("ESP32test"); //Bluetooth device name
+  Serial.println("The device started, now you can pair it with bluetooth!");
 
   // pin
   pinMode(buttonPin, INPUT_PULLUP);
@@ -146,6 +156,7 @@ void loop() {
       #endif
 
       #ifdef CMD_FROM_SNITCH
+        Serial.println("connect with snitch");
         controlTelloProcess();
       #endif
     } else {
@@ -191,8 +202,35 @@ void selectFunction(String packet)
 // -- client(controll Tello) mode process function
 void controlTelloProcess(void)
 {
+
+  //send command from snitch, in real time.
   #ifdef CMD_FROM_SNITCH
-  String fileData = readTextFile("DRONECMD.txt");
+  unsigned long previous_time = millis();
+  bool no_command = false;
+  s_command = "";
+
+  while (!Serial.available())
+  {
+    if(millis()-previous_time > 50000)
+    {
+      no_command = true;
+      break;
+    }
+  };
+
+  if(false == no_command)
+  {
+    while (Serial.available())
+    {
+      c_temp = Serial.read();
+      s_command.concat(c_temp);
+    }
+    Serial.println("end read command");
+  }  else  {
+    s_command = "command,land,";
+  };
+
+  String fileData = s_command;
   int fileDataLen = fileData.length();
   int indexPos = 0;
   int startPos = 0;
@@ -232,6 +270,7 @@ void controlTelloProcess(void)
   Serial.println("finish!");
   #endif
 
+  //send command from internal flash. which upload by pc
   #ifdef CMD_FROM_SPIFFS
   String fileData = readTextFile("DRONECMD.txt");
   int fileDataLen = fileData.length();
@@ -269,9 +308,10 @@ void controlTelloProcess(void)
       // end of file
       break;
     }
-    #endif
+    
   }
   Serial.println("finish!");
+  #endif
 }
 
 // -- write ssid to SSID.txt
