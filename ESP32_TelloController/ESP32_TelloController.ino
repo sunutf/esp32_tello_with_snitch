@@ -6,7 +6,8 @@
 #include <WiFiUdp.h>
 #include <FS.h>
 #include <SPIFFS.h>
-#include "BluetoothSerial.h"
+// #include "BluetoothSerial.h"
+#include "SimpleBLE.h"
 
 #define CMD_FROM_SNITCH
 // #define CMD_FROM_SPIFFS
@@ -72,14 +73,17 @@ bool connectedTello = false;
 bool settingModeEnable = false;
 
 //BLE
-BluetoothSerial SerialBT;
+// BluetoothSerial SerialBT;
+SimpleBLE ble;
 
 // -- setup function
 void setup() {
   // serial
   Serial.begin(115200);
   Serial2.begin(115200); // HardwareSerial UART2 RX/TX
-  SerialBT.begin("ESP32test"); //Bluetooth device name
+  // SerialBT.begin("ESP32test"); //Bluetooth device name
+  ble.begin("leviosa_esp32");
+
   Serial.println("The device started, now you can pair it with bluetooth!");
 
   // pin
@@ -208,8 +212,14 @@ void controlTelloProcess(void)
   unsigned long previous_time = millis();
   bool no_command = false;
   s_command = "";
-
-  while (!Serial.available())
+  
+  // while(1){
+  //   if (SerialBT.available())
+  //   {
+  //     Serial.write(SerialBT.read());
+  //   }
+  // }
+  while (!Serial2.available())
   {
     if(millis()-previous_time > 50000)
     {
@@ -220,9 +230,9 @@ void controlTelloProcess(void)
 
   if(false == no_command)
   {
-    while (Serial.available())
+    while (Serial2.available())
     {
-      c_temp = Serial.read();
+      c_temp = Serial2.read();
       s_command.concat(c_temp);
     }
     Serial.println("end read command");
@@ -257,7 +267,8 @@ void controlTelloProcess(void)
         Serial.print("send : ");
         Serial.println(sendData);
         udp.beginPacket(ipTello.c_str(), udpPortTello);
-        udp.printf(sendData.c_str());
+        udp.printf(sendData.c_str
+        ());
         udp.endPacket();
       }
       startPos = indexPos + 1;
