@@ -11,6 +11,8 @@
 
 #define CMD_FROM_SNITCH
 // #define CMD_FROM_SPIFFS
+
+#define CMD_SNITCH_SERIAL Serial2
 // -- literal
 // pin
 const int buttonPin = 13;
@@ -39,6 +41,8 @@ void writeSsid(String arg);
 void writePass(String arg);
 void writeDroneCmd(String arg);
 void clearDroneCmd(String arg);
+
+
 
 // command table
 typedef void (pfunc)(String);
@@ -80,7 +84,7 @@ SimpleBLE ble;
 void setup() {
   // serial
   Serial.begin(115200);
-  Serial2.begin(115200); // HardwareSerial UART2 RX/TX
+  CMD_SNITCH_SERIAL.begin(115200); // HardwareSerial UART2 RX/TX
   // SerialBT.begin("ESP32test"); //Bluetooth device name
   ble.begin("leviosa_esp32");
 
@@ -219,7 +223,7 @@ void controlTelloProcess(void)
   //     Serial.write(SerialBT.read());
   //   }
   // }
-  while (!Serial2.available())
+  while (!CMD_SNITCH_SERIAL.available())
   {
     if(millis()-previous_time > 50000)
     {
@@ -230,9 +234,9 @@ void controlTelloProcess(void)
 
   if(false == no_command)
   {
-    while (Serial2.available())
+    while (CMD_SNITCH_SERIAL.available())
     {
-      c_temp = Serial2.read();
+      c_temp = CMD_SNITCH_SERIAL.read();
       s_command.concat(c_temp);
     }
     Serial.println("end read command");
@@ -267,8 +271,7 @@ void controlTelloProcess(void)
         Serial.print("send : ");
         Serial.println(sendData);
         udp.beginPacket(ipTello.c_str(), udpPortTello);
-        udp.printf(sendData.c_str
-        ());
+        udp.printf(sendData.c_str());
         udp.endPacket();
       }
       startPos = indexPos + 1;
