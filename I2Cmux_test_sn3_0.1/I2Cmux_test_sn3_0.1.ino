@@ -56,8 +56,8 @@ void snitchConMux2Table(int mux_id, int mux_ch, float lux){
     deg = mux_ch;
   }
   else{
-    if(0 == mux_id) deg = mux_ch-6;
-    else if(1 == mux_id) deg = mux_ch-4;
+    if(0 == mux_id)      deg = 7 - mux_ch; //mux ch = 6 or 7
+    else if(1 == mux_id) deg = 9 - mux_ch;
   }
 
   snitch_lux_t[quad][updown][deg] = lux;
@@ -272,39 +272,40 @@ void setup()
   Serial.begin(115200);
   Serial.println("\nTCAScanner ready!");
 
-// sendToAllSet();
+  sendToAllSet();
 
-  tcaDeSelect(0);
-  tcaDeSelect(1);
-  tcaSelect(0,255);
-  delay(5);
-  rgb_sensor.begin();
-  delay(5);
+//  tcaDeSelect(0);
+//  tcaDeSelect(1);
+//  tcaSelect(0,255);
+//  delay(5);
+//  rgb_sensor.begin();
+//  delay(5);
 }
  
 void loop() 
 { 
-  
-     delay(1000);
-     Serial.println("------------------");
-     int id = 0, ch=0;
-//     for(int id = 0 ; id<8; id++){
-//       Serial.printf("---------%d---------", id);
-//       for(int ch = 0 ; ch<8; ch++){
-  
-       //we don't have sense in ch = 4,5, don't need to spend time here
-//       if(ch == 4 | ch ==5) continue;
-       tcaSelect(id,ch);
-       
-       rgb_sensor.getData();
+   Serial.println("------------------");
+   for(int id = 0 ; id<8; id++){
+    readLuxFromMux(id);
+   }
+////   
+////     for(int id = 0 ; id<8; id++){
+////       Serial.printf("---------%d---------", id);
+////       for(int ch = 0 ; ch<8; ch++){
 //  
-//       Serial.print(("Ch:")); 
-//       Serial.print(ch); 
-       Serial.print((" Lux:")); 
-       Serial.println(rgb_sensor.lux);
-              
-//     }
-//   }
+//       //we don't have sense in ch = 4,5, don't need to spend time here
+////       if(ch == 4 | ch ==5) continue;
+//       tcaSelect(id,ch);
+//       
+////       rgb_sensor.getData();
+////  
+////       Serial.print(("Ch:")); 
+////       Serial.print(ch); 
+////       Serial.print((" Lux:")); 
+////       Serial.println(rgb_sensor.lux);
+//             
+////     }
+////   }
 }
 
 void sendToAllSet(void)
