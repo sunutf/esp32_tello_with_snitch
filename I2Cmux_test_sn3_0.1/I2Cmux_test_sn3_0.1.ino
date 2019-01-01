@@ -8,6 +8,66 @@
 #include "Wire.h"
 #include "Adafruit_TCS34725.h"
 
+/*========================================================================*/
+//Snitch part
+/*========================================================================*/
+//snitch_lux_t[Quadrant][UpDown][Degree]
+//[Quadrant] = [FrontRight,FrontLeft,BackLeft,BackRight]
+//[UpDown] = [Center, Up, Down]
+//[Degree] = [0, 45, 90, 135]
+#define FR 0
+#define FL 1
+#define BR 2
+#define BL 3
+
+#define CENT 0
+#define UP   1
+#define DOWN 2
+
+#define DEG0   0
+#define DEG45  1
+#define DEG90  2
+#define DEG135 3
+
+float snitch_lux_t[4][3][4] = {0};
+
+void snitchConMux2Table(int mux_id, int mux_ch, float lux){
+  if(mux_id > 7) return ;
+  int quad = 0;
+  int updown = 0;
+  int deg = 0;
+  
+  //Quadrant
+  quad = mux_id/2;
+
+  //Upside
+  mux_id = mux_id%2;
+  if(6 == mux_ch | 7 == mux_ch){
+    updown = CENT;
+  }
+  else{
+    if(0 == mux_id)      updown = UP;
+    else if(1 == mux_id) updown = DOWN;
+  }
+
+  //Deg
+  //0,1,2,3
+  if(UP == updown | DOWN == updown){
+    deg = mux_ch;
+  }
+  else{
+    if(0 == mux_id) deg = mux_ch-6;
+    else if(1 == mux_id) deg = mux_ch-4;
+  }
+
+  snitch_lux_t[quad][updown][deg] = lux;
+}
+
+
+/*========================================================================*/
+//TCS34725 - Lux Sensor
+/*========================================================================*/
+
 //
 // An experimental wrapper class that implements the improved lux and color temperature from 
 // TAOS and a basic autorange mechanism.
@@ -92,7 +152,7 @@ const tcs34725::tcs_agc tcs34725::agc_lst[] = {
 };
 tcs34725::tcs34725() : agc_cur(0), isAvailable(0), isSaturated(0) {
 }
-/*sampling time
+/*sampling time OPTION
     case TCS34725_INTEGRATIONTIME_2_4MS:
 
     case TCS34725_INTEGRATIONTIME_24MS:
@@ -203,56 +263,23 @@ void tcaDeSelect(uint8_t id){
 // standard Arduino setup()
 void setup()
 {
-    while (!Serial);
-    delay(1000);
- 
-    //Wire.begin();
-    Wire.begin(23, 22, 400000);
-     
-    Serial.begin(115200);
-    Serial.println("\nTCAScanner ready!");
-//    for(uint8_t id=0; id<8; id++){
-//      tcaDeSelect(id);
-//      for (uint8_t ch=0; ch<8; ch++) {
-//        tcaSelect(0,1);
-        delay(5);
-        
-//        rgb_sensor.getData();
-//        Serial.print("TCA Port # id : "); Serial.print(id);
-//        Serial.print("ch : "); Serial.println(ch);
-//        Serial.print(("Lux:")); 
-//        Serial.print(rgb_sensor.lux);
-//        Serial.print("\n\n"); 
+  while (!Serial);
+  delay(1000);
+
+  //Wire.begin();
+  Wire.begin(23, 22, 400000);
    
-//        for (uint8_t addr = 0; addr<=127; addr++) {
-//          if (addr == TCAADDR) continue;
-//        
-//          uint8_t data;
-//          if (! twi_writeTo(addr, &data, 0, 1, 1)) {
-//             Serial.print("Found I2C 0x");  Serial.println(addr,HEX);
-//          }
-//        }
-//        }
-//      tcaDeSelect(id);
-//      }
-    
-//    Serial.println("\ndone");
-//  for(int id=0; id<8; id++){
-//    tcaDeSelect(id);
-//  }
-//  
-//  for(int id=0; id<8; id++){
-//    tcaSelect(id,255);
-//    delay(5);
-//    rgb_sensor.begin();
-//    delay(5);
-//  }
-tcaDeSelect(2);
-tcaDeSelect(3);
-tcaSelect(2,255);
-    delay(5);
-    rgb_sensor.begin();
-    delay(5);
+  Serial.begin(115200);
+  Serial.println("\nTCAScanner ready!");
+
+// sendToAllSet();
+
+  tcaDeSelect(0);
+  tcaDeSelect(1);
+  tcaSelect(0,255);
+  delay(5);
+  rgb_sensor.begin();
+  delay(5);
 }
  
 void loop() 
@@ -260,22 +287,52 @@ void loop()
   
      delay(1000);
      Serial.println("------------------");
-     int id = 2;
+     int id = 0, ch=0;
 //     for(int id = 0 ; id<8; id++){
 //       Serial.printf("---------%d---------", id);
-       for(int ch = 0 ; ch<8; ch++){
+//       for(int ch = 0 ; ch<8; ch++){
   
        //we don't have sense in ch = 4,5, don't need to spend time here
-       if(ch == 4 | ch ==5) continue;
+//       if(ch == 4 | ch ==5) continue;
        tcaSelect(id,ch);
        
        rgb_sensor.getData();
-  
-       Serial.print(("Ch:")); 
-       Serial.print(ch); 
+//  
+//       Serial.print(("Ch:")); 
+//       Serial.print(ch); 
        Serial.print((" Lux:")); 
        Serial.println(rgb_sensor.lux);
               
 //     }
-   }
+//   }
 }
+
+void sendToAllSet(void)
+{
+  for(int id=0; id<8; id++){
+    tcaDeSelect(id);
+  }
+  
+  for(int id=0; id<8; id++){
+    tcaSelect(id,255);
+    delay(5);
+    rgb_sensor.begin();
+    delay(5);
+    tcaDeSelect(id);
+  }
+}
+
+void readLuxFromMux(int id){
+   for(int ch = 0 ; ch<8; ch++){
+     //we don't have sense in ch = 4,5, don't need to spend time here
+    if(ch == 4 | ch ==5) continue;
+    
+    tcaSelect(id,ch);
+    rgb_sensor.getData();
+    snitchConMux2Table(id, ch, rgb_sensor.lux);
+   }
+  tcaDeSelect(id);
+}
+
+
+
