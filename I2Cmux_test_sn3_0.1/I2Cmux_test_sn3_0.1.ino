@@ -246,6 +246,14 @@ tcs34725 rgb_sensor;
 //void tcaAllSelect(void){
 //  tcaSelect();
 //}
+
+void tcaSelectAllCh(uint8_t id) {
+  if (id > 7) return;
+ 
+  Wire.beginTransmission(TCAADDR+id);
+  Wire.write(255);
+  Wire.endTransmission();  
+}
  
 void tcaSelect(uint8_t id, uint8_t ch) {
   if (ch > 7) return;
@@ -273,10 +281,10 @@ void setup()
   Serial.println("\nTCAScanner ready!");
 
   sendToAllSet();
-
-//  tcaDeSelect(0);
-//  tcaDeSelect(1);
-//  tcaSelect(0,255);
+//
+//  tcaDeSelect(4);
+//  tcaDeSelect(5);
+//  tcaSelectAllCh(5);
 //  delay(5);
 //  rgb_sensor.begin();
 //  delay(5);
@@ -284,28 +292,34 @@ void setup()
  
 void loop() 
 { 
+  delay(1000);
    Serial.println("------------------");
-   for(int id = 0 ; id<8; id++){
-    readLuxFromMux(id);
+//   for(int id = 0 ; id<8; id++){
+//    readLuxFromMux(id);
+//   }
+//   
+     for(int id =6 ; id<8; id++){
+       Serial.printf("---------%d---------", id);
+
+       for(int ch = 0 ; ch<8; ch++){
+  
+         //we don't have sense in ch = 4,5, don't need to spend time here
+     
+         if(ch == 4 | ch ==5) continue;
+         tcaSelect(id,ch);
+  //       delay(5);
+         
+         rgb_sensor.getData();
+    
+         Serial.print(("Ch:")); 
+         Serial.print(ch); 
+         Serial.print((" Lux:")); 
+         Serial.println(rgb_sensor.lux);
+             
+       }
+       tcaDeSelect(id);
+
    }
-////   
-////     for(int id = 0 ; id<8; id++){
-////       Serial.printf("---------%d---------", id);
-////       for(int ch = 0 ; ch<8; ch++){
-//  
-//       //we don't have sense in ch = 4,5, don't need to spend time here
-////       if(ch == 4 | ch ==5) continue;
-//       tcaSelect(id,ch);
-//       
-////       rgb_sensor.getData();
-////  
-////       Serial.print(("Ch:")); 
-////       Serial.print(ch); 
-////       Serial.print((" Lux:")); 
-////       Serial.println(rgb_sensor.lux);
-//             
-////     }
-////   }
 }
 
 void sendToAllSet(void)
@@ -315,11 +329,12 @@ void sendToAllSet(void)
   }
   
   for(int id=0; id<8; id++){
-    tcaSelect(id,255);
-    delay(5);
+    tcaSelectAllCh(id);
+//    delay(1);
     rgb_sensor.begin();
-    delay(5);
+    
     tcaDeSelect(id);
+//    delay(1);
   }
 }
 
@@ -329,10 +344,12 @@ void readLuxFromMux(int id){
     if(ch == 4 | ch ==5) continue;
     
     tcaSelect(id,ch);
+//    delay(1);
     rgb_sensor.getData();
     snitchConMux2Table(id, ch, rgb_sensor.lux);
    }
   tcaDeSelect(id);
+//  delay(5);
 }
 
 
