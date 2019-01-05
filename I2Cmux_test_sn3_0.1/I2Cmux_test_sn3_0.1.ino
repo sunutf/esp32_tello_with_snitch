@@ -11,7 +11,7 @@
 /*========================================================================*/
 //Snitch part
 /*========================================================================*/
-//snitch_lux_t[Quadrant][UpDown][Degree]
+//
 //[Quadrant] = [FrontRight,FrontLeft,BackLeft,BackRight]
 //[UpDown] = [Center, Up, Down]
 //[Degree] = [0, 45, 90, 135]
@@ -20,16 +20,28 @@
 #define BR 2
 #define BL 3
 
-#define CENT 0
-#define UP   1
-#define DOWN 2
+#define MID 0
+#define TOP   1
+#define BOTTOM 2
 
 #define DEG0   0
 #define DEG45  1
 #define DEG90  2
 #define DEG135 3
 
-float snitch_lux_t[4][3][4] = {0};
+typedef struct{
+    float raw_lux[4];
+    float ambi_lux;
+    float polar_lux;
+    
+}snitch_surf_t;
+
+typedef struct{
+  snitch_surf_t top, mid, bottom;
+ 
+}snitch_t;
+
+snitch_t snitch_dir[4];
 
 void snitchConMux2Table(int mux_id, int mux_ch, float lux){
   if(mux_id > 7) return ;
@@ -43,16 +55,16 @@ void snitchConMux2Table(int mux_id, int mux_ch, float lux){
   //Upside
   mux_id = mux_id%2;
   if(6 == mux_ch | 7 == mux_ch){
-    updown = CENT;
+    updown = MID;
   }
   else{
-    if(0 == mux_id)      updown = UP;
-    else if(1 == mux_id) updown = DOWN;
+    if(0 == mux_id)      updown = TOP;
+    else if(1 == mux_id) updown = BOTTOM;
   }
 
   //Deg
   //0,1,2,3
-  if(UP == updown | DOWN == updown){
+  if(TOP == updown | BOTTOM == updown){
     deg = mux_ch;
   }
   else{
@@ -60,9 +72,41 @@ void snitchConMux2Table(int mux_id, int mux_ch, float lux){
     else if(1 == mux_id) deg = 9 - mux_ch;
   }
 
-  snitch_lux_t[quad][updown][deg] = lux;
+  if(updown == MID)         snitch_dir[quad].mid.raw_lux[deg]     = lux;
+  else if(updown == TOP)    snitch_dir[quad].top.raw_lux[deg]     = lux;
+  else if(updown == BOTTOM) snitch_dir[quad].bottom.raw_lux[deg]  = lux;
 }
 
+/*========================================================================*/
+//Leviosa part
+/*========================================================================*/
+
+//
+//void extractLuxCalc(*surf_set)
+//{
+//  
+//}
+//{
+//  int16_t diff_luxA;
+//  int16_t diff_luxB;
+//  int16_t diff_luxC;
+//  float source_lux;
+//  float nature_lux;
+// 
+//  diff_luxA = buf[0]-buf[1];
+//  diff_luxB = buf[1]-buf[2];
+//  diff_luxC = buf[2]-buf[0];
+// 
+//  source_lux =   (float)(diff_luxC * diff_luxC);
+//  source_lux +=  (float)((diff_luxA-diff_luxB)*(diff_luxA-diff_luxB));
+//  source_lux =   sqrtf(source_lux);
+//
+//  nature_lux = ((float)buf[0]+(float)buf[2]-source_lux)/2;
+//
+//  *source = source_lux;
+//  *nature = nature_lux;
+//
+//}
 
 /*========================================================================*/
 //TCS34725 - Lux Sensor
@@ -235,17 +279,8 @@ void tcs34725::getData(void) {
 
 tcs34725 rgb_sensor;
 
-///////////tca part
-
-//extern "C" { 
-//  #include "utility/twi.h"  // from Wire library, so we can do bus scanning
-//}
 
 #define TCAADDR 0x70
-//
-//void tcaAllSelect(void){
-//  tcaSelect();
-//}
 
 void tcaSelectAllCh(uint8_t id) {
   if (id > 7) return;
@@ -275,51 +310,47 @@ void setup()
   delay(1000);
 
   //Wire.begin();
-  Wire.begin(23, 22, 400000);
-   
   Serial.begin(115200);
-  Serial.println("\nTCAScanner ready!");
-
+  Serial.print("start\n");
+  Wire.begin(23, 22, 400000);
   sendToAllSet();
-//
-//  tcaDeSelect(4);
-//  tcaDeSelect(5);
-//  tcaSelectAllCh(5);
-//  delay(5);
-//  rgb_sensor.begin();
-//  delay(5);
 }
  
 void loop() 
 { 
-  delay(1000);
-   Serial.println("------------------");
-//   for(int id = 0 ; id<8; id++){
-//    readLuxFromMux(id);
-//   }
-//   
-     for(int id =6 ; id<8; id++){
-       Serial.printf("---------%d---------", id);
-
-       for(int ch = 0 ; ch<8; ch++){
   
-         //we don't have sense in ch = 4,5, don't need to spend time here
-     
-         if(ch == 4 | ch ==5) continue;
-         tcaSelect(id,ch);
-  //       delay(5);
-         
-         rgb_sensor.getData();
-    
-         Serial.print(("Ch:")); 
-         Serial.print(ch); 
-         Serial.print((" Lux:")); 
-         Serial.println(rgb_sensor.lux);
-             
-       }
-       tcaDeSelect(id);
-
+  delay(1000);
+   for(int id = 0 ; id<8; id++){
+    readLuxFromMux(id);
    }
+
+  //DEBUG//
+   for(int quad = 0; quad <4 ; quad++){
+    Serial.print("----Quad : ");
+    Serial.print(quad);
+    Serial.println("------");
+    
+    Serial.println("-TOP-");
+    for(int deg = 0; deg <4 ; deg++){
+      Serial.print(deg*45);
+      Serial.print(" : ");
+      Serial.println(snitch_dir[quad].top.raw_lux[deg]);
+    }
+    
+    Serial.println("\n-MID-");
+    for(int deg = 0; deg <4 ; deg++){
+      Serial.print(deg*45);
+      Serial.print(" : ");
+      Serial.println(snitch_dir[quad].mid.raw_lux[deg]);
+    }
+    
+    Serial.println("\n-BOTTOM-");
+    for(int deg = 0; deg <4 ; deg++){
+      Serial.print(deg*45);
+      Serial.print(" : ");
+      Serial.println(snitch_dir[quad].bottom.raw_lux[deg]);
+    }
+  }
 }
 
 void sendToAllSet(void)
@@ -330,26 +361,26 @@ void sendToAllSet(void)
   
   for(int id=0; id<8; id++){
     tcaSelectAllCh(id);
-//    delay(1);
     rgb_sensor.begin();
     
     tcaDeSelect(id);
-//    delay(1);
   }
 }
 
 void readLuxFromMux(int id){
    for(int ch = 0 ; ch<8; ch++){
-     //we don't have sense in ch = 4,5, don't need to spend time here
+     //we don't have sensors in ch = 4,5, don't need to spend time here
     if(ch == 4 | ch ==5) continue;
     
     tcaSelect(id,ch);
-//    delay(1);
     rgb_sensor.getData();
+//    Serial.print(("Ch:")); 
+//    Serial.print(ch); 
+//    Serial.print((" Lux:")); 
+//    Serial.println(rgb_sensor.lux);
     snitchConMux2Table(id, ch, rgb_sensor.lux);
    }
-  tcaDeSelect(id);
-//  delay(5);
+   tcaDeSelect(id);
 }
 
 
