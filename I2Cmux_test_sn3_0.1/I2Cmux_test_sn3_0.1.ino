@@ -183,9 +183,11 @@ private:
 // Also set the first min count and the last max count to 0 to indicate 
 // the start and end of the list. 
 //
+
+#define A_TIME TCS34725_INTEGRATIONTIME_2_4MS
 const tcs34725::tcs_agc tcs34725::agc_lst[] = {
   #ifndef AUTO_RANGE_ON
-  { TCS34725_GAIN_16X, TCS34725_INTEGRATIONTIME_2_4MS,     0, 20000 },
+  { TCS34725_GAIN_4X, A_TIME,     0, 20000 },
   #endif
   { TCS34725_GAIN_60X, TCS34725_INTEGRATIONTIME_700MS,     0, 20000 },
   { TCS34725_GAIN_60X, TCS34725_INTEGRATIONTIME_154MS,  4990, 63000 },
@@ -253,7 +255,7 @@ void tcs34725::getData(void) {
     #endif
 
     setGainTime(); 
-    delay((256 - atime) * 2.4 * 2); // shock absorber
+//    delay((256 - atime) * 2.4 * 2); // shock absorber
     tcs.getRawData(&r, &g, &b, &c);
     break;    
   }
@@ -315,10 +317,11 @@ void setup()
   sendToAllSet();
 }
  
+ int pre_time, process_time = 0;
 void loop() 
 { 
-  
-  delay(1000);
+  pre_time = millis();
+//  delay(1000);
    for(int id = 0 ; id<8; id++){
     readLuxFromMux(id);
    }
@@ -342,7 +345,8 @@ void loop()
     Serial.print("  AMBI: "); 
     Serial.println(snitch_dir[quad].bottom.ambi_lux);
    }
-
+   process_time = millis()-pre_time;
+    Serial.println(process_time);
    
   //DEBUG//
 //   for(int quad = 0; quad <4 ; quad++){
@@ -383,8 +387,31 @@ void sendToAllSet(void)
     tcaSelectAllCh(id);
     rgb_sensor.begin();
     
+    
     tcaDeSelect(id);
   }
+  int a_time = A_TIME;
+    switch (a_time)
+    {
+    case TCS34725_INTEGRATIONTIME_2_4MS:
+      delay(4);
+      break;
+    case TCS34725_INTEGRATIONTIME_24MS:
+      delay(25);
+      break;
+    case TCS34725_INTEGRATIONTIME_50MS:
+      delay(51);
+      break;
+    case TCS34725_INTEGRATIONTIME_101MS:
+      delay(102);
+      break;
+    case TCS34725_INTEGRATIONTIME_154MS:
+      delay(155);
+      break;
+    case TCS34725_INTEGRATIONTIME_700MS:
+      delay(701);
+      break;
+   }
 }
 
 void readLuxFromMux(int id){
