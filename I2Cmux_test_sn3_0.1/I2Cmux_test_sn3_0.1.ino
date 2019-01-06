@@ -82,31 +82,30 @@ void snitchConMux2Table(int mux_id, int mux_ch, float lux){
 /*========================================================================*/
 
 //
-//void extractLuxCalc(*surf_set)
-//{
-//  
-//}
-//{
-//  int16_t diff_luxA;
-//  int16_t diff_luxB;
-//  int16_t diff_luxC;
-//  float source_lux;
-//  float nature_lux;
-// 
-//  diff_luxA = buf[0]-buf[1];
-//  diff_luxB = buf[1]-buf[2];
-//  diff_luxC = buf[2]-buf[0];
-// 
-//  source_lux =   (float)(diff_luxC * diff_luxC);
-//  source_lux +=  (float)((diff_luxA-diff_luxB)*(diff_luxA-diff_luxB));
-//  source_lux =   sqrtf(source_lux);
-//
-//  nature_lux = ((float)buf[0]+(float)buf[2]-source_lux)/2;
-//
-//  *source = source_lux;
-//  *nature = nature_lux;
-//
-//}
+void extractLuxCalc(snitch_surf_t* surf_set){
+  int16_t diff_luxA;
+  int16_t diff_luxB;
+  int16_t diff_luxC;
+  float src_lux[4];
+  float amb_lux[4];
+  
+  for(int deg =0; deg<4; deg++){
+    diff_luxA = surf_set->raw_lux[deg%4] - surf_set->raw_lux[(deg+1)%4];
+    diff_luxB = surf_set->raw_lux[(deg+1)%4] - surf_set->raw_lux[(deg+2)%4];
+    diff_luxC = surf_set->raw_lux[(deg+2)%4] - surf_set->raw_lux[deg%4];
+   
+    src_lux[deg] =   (float)(diff_luxC * diff_luxC);
+    src_lux[deg] +=  (float)((diff_luxA-diff_luxB)*(diff_luxA-diff_luxB));
+    src_lux[deg] =   sqrtf(src_lux[deg]);
+  
+    amb_lux[deg] = ((float)surf_set->raw_lux[deg%4]+(float)surf_set->raw_lux[(deg+2)%4]-src_lux[deg])/2;
+  }
+
+  surf_set->ambi_lux = (amb_lux[0]+amb_lux[1]+amb_lux[2]+amb_lux[3])/4.0f;
+  surf_set->polar_lux = (src_lux[0]+src_lux[1]+src_lux[2]+src_lux[3])/4.0f;
+
+
+}
 
 /*========================================================================*/
 //TCS34725 - Lux Sensor
@@ -324,33 +323,54 @@ void loop()
     readLuxFromMux(id);
    }
 
+   for(int quad=0; quad<4; quad++){
+    extractLuxCalc(&snitch_dir[quad].top);
+    extractLuxCalc(&snitch_dir[quad].mid);
+    extractLuxCalc(&snitch_dir[quad].bottom);
+
+    Serial.printf("----Quad : %d-----\n", quad);
+    Serial.print("TOP SRC: ");
+    Serial.print(snitch_dir[quad].top.polar_lux);
+    Serial.print("  AMBI: "); 
+    Serial.println(snitch_dir[quad].top.ambi_lux);
+     Serial.print("MID SRC: ");
+    Serial.print(snitch_dir[quad].mid.polar_lux);
+    Serial.print("  AMBI: "); 
+    Serial.println(snitch_dir[quad].mid.ambi_lux);
+     Serial.print("BOT SRC: ");
+    Serial.print(snitch_dir[quad].bottom.polar_lux);
+    Serial.print("  AMBI: "); 
+    Serial.println(snitch_dir[quad].bottom.ambi_lux);
+   }
+
+   
   //DEBUG//
-   for(int quad = 0; quad <4 ; quad++){
-    Serial.print("----Quad : ");
-    Serial.print(quad);
-    Serial.println("------");
-    
-    Serial.println("-TOP-");
-    for(int deg = 0; deg <4 ; deg++){
-      Serial.print(deg*45);
-      Serial.print(" : ");
-      Serial.println(snitch_dir[quad].top.raw_lux[deg]);
-    }
-    
-    Serial.println("\n-MID-");
-    for(int deg = 0; deg <4 ; deg++){
-      Serial.print(deg*45);
-      Serial.print(" : ");
-      Serial.println(snitch_dir[quad].mid.raw_lux[deg]);
-    }
-    
-    Serial.println("\n-BOTTOM-");
-    for(int deg = 0; deg <4 ; deg++){
-      Serial.print(deg*45);
-      Serial.print(" : ");
-      Serial.println(snitch_dir[quad].bottom.raw_lux[deg]);
-    }
-  }
+//   for(int quad = 0; quad <4 ; quad++){
+//    Serial.print("\n----Quad : ");
+//    Serial.print(quad);
+//    Serial.println("------");
+//    
+//    Serial.println("-TOP-");
+//    for(int deg = 0; deg <4 ; deg++){
+//      Serial.print(deg*45);
+//      Serial.print(" : ");
+//      Serial.println(snitch_dir[quad].top.raw_lux[deg]);
+//    }
+//    
+//    Serial.println("-MID-");
+//    for(int deg = 0; deg <4 ; deg++){
+//      Serial.print(deg*45);
+//      Serial.print(" : ");
+//      Serial.println(snitch_dir[quad].mid.raw_lux[deg]);
+//    }
+//    
+//    Serial.println("-BOTTOM-");
+//    for(int deg = 0; deg <4 ; deg++){
+//      Serial.print(deg*45);
+//      Serial.print(" : ");
+//      Serial.println(snitch_dir[quad].bottom.raw_lux[deg]);
+//    }
+//  }
 }
 
 void sendToAllSet(void)
@@ -374,10 +394,6 @@ void readLuxFromMux(int id){
     
     tcaSelect(id,ch);
     rgb_sensor.getData();
-//    Serial.print(("Ch:")); 
-//    Serial.print(ch); 
-//    Serial.print((" Lux:")); 
-//    Serial.println(rgb_sensor.lux);
     snitchConMux2Table(id, ch, rgb_sensor.lux);
    }
    tcaDeSelect(id);
