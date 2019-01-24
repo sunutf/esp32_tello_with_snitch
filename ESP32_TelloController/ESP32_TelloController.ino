@@ -12,7 +12,7 @@
 #define CMD_FROM_SNITCH
 // #define CMD_FROM_SPIFFS
 
-#define CMD_SNITCH_SERIAL Serial2
+#define CMD_SNITCH_SERIAL Serial
 // -- literal
 // pin
 const int buttonPin = 13;
@@ -28,8 +28,8 @@ const int udpPortAp = 1060;
 const int receiveBufferLen = 64;
 
 // WiFi - Client mode (for Tello)
-String ssidTello = "TELLO-XXXXXX";  // overridden later
-String passwordTello = "password";  // overridden later
+String ssidTello = "TELLO-AA0558";  // overridden later
+String passwordTello = "0000";  // overridden later
 String ipTello = "192.168.10.1";
 const int udpPortTello = 8889;
 
@@ -129,12 +129,12 @@ void setup() {
 
     // -- client mode
     // WiFi connect to Tello
-    ssidTello = readTextFile("SSID.txt");
-    Serial.print("SSID Tello : ");
-    Serial.println(ssidTello);
-    passwordTello = readTextFile("PASS.txt");
-    Serial.print("Password Tello : ");
-    Serial.println(passwordTello);
+//    ssidTello = readTextFile("SSID.txt");
+//    Serial.print("SSID Tello : ");
+//    Serial.println(ssidTello);
+//    passwordTello = readTextFile("PASS.txt");
+//    Serial.print("Password Tello : ");
+//    Serial.println(passwordTello);
     connectToWiFi(ssidTello.c_str(), passwordTello.c_str());
     digitalWrite(ledPin, LOW);
   }
