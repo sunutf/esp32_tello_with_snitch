@@ -336,11 +336,11 @@ void loop()
     Serial.print(snitch_dir[quad].top.polar_lux);
     Serial.print("  AMBI: "); 
     Serial.println(snitch_dir[quad].top.ambi_lux);
-     Serial.print("MID SRC: ");
+    Serial.print("MID SRC: ");
     Serial.print(snitch_dir[quad].mid.polar_lux);
     Serial.print("  AMBI: "); 
     Serial.println(snitch_dir[quad].mid.ambi_lux);
-     Serial.print("BOT SRC: ");
+    Serial.print("BOT SRC: ");
     Serial.print(snitch_dir[quad].bottom.polar_lux);
     Serial.print("  AMBI: "); 
     Serial.println(snitch_dir[quad].bottom.ambi_lux);
@@ -391,8 +391,8 @@ void sendToAllSet(void)
     tcaDeSelect(id);
   }
   int a_time = A_TIME;
-    switch (a_time)
-    {
+  switch (a_time)
+  {
     case TCS34725_INTEGRATIONTIME_2_4MS:
       delay(4);
       break;

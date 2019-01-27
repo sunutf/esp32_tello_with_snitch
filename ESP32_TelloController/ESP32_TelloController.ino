@@ -11,8 +11,9 @@
 
 #define CMD_FROM_SNITCH
 // #define CMD_FROM_SPIFFS
+#define WAIT_TIME 20000
 
-#define CMD_SNITCH_SERIAL Serial
+#define CMD_SNITCH_SERIAL Serial2
 // -- literal
 // pin
 const int buttonPin = 13;
@@ -225,7 +226,7 @@ void controlTelloProcess(void)
   // }
   while (!CMD_SNITCH_SERIAL.available())
   {
-    if(millis()-previous_time > 50000)
+    if(millis()-previous_time > WAIT_TIME)
     {
       no_command = true;
       break;
