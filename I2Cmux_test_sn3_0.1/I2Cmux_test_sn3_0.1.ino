@@ -7,6 +7,8 @@
  GND ---------------------- GND*/
 #include "Wire.h"
 #include "Adafruit_TCS34725.h"
+#include "EEPROM.h"
+#define EEPROM_SIZE 256
 
 /*========================================================================*/
 //Snitch part
@@ -105,6 +107,48 @@ void extractLuxCalc(snitch_surf_t* surf_set){
   surf_set->polar_lux = (src_lux[0]+src_lux[1]+src_lux[2]+src_lux[3])/4.0f;
 
 
+}
+
+int extractCaliLuxCalc(snitch_surf_t* surf_set, int addr){
+  int16_t diff_luxA;
+  int16_t diff_luxB;
+  float src_lux[4];
+  float amb_lux[4];
+  float A;
+  float B;
+  float theta[4];
+
+  theta[0] = EEPROM.readFloat(addr);
+  addr += 4;
+  theta[1] = EEPROM.readFloat(addr);
+  addr += 4;
+  theta[2] = EEPROM.readFloat(addr);
+  addr += 4;
+  theta[3] = EEPROM.readFloat(addr);
+  addr += 4;
+
+//  Serial.println("=======");
+//  for(int i =0; i<4; i++){
+//    Serial.print(i);
+//    Serial.print(" : ");
+//    Serial.println(theta[i]);
+//  }
+//  Serial.println();
+//  
+  A = (1-theta[3])/theta[1] - (1-theta[2])/theta[0];
+  B = theta[0]/(1-theta[2]) - theta[1]/(1-theta[3]);
+  for(int deg =0; deg<1; deg++){
+    diff_luxA = surf_set->raw_lux[deg%4] - surf_set->raw_lux[(deg+1)%4];
+    diff_luxB = surf_set->raw_lux[deg%4] - surf_set->raw_lux[(deg+2)%4];
+
+    A = 2*(diff_luxB/theta[1]-diff_luxA/theta[0])/A;
+    B = 2*(diff_luxB/(1-theta[3])-diff_luxA/(1-theta[2]))/B;
+    
+    surf_set->polar_lux = sqrtf(A*A + B*B);
+    surf_set->ambi_lux = (2*surf_set->raw_lux[deg%4]-surf_set->polar_lux-A)/2.0f;
+   
+  }
+  return addr;
 }
 
 /*========================================================================*/
@@ -313,11 +357,17 @@ void setup()
   //Wire.begin();
   Serial.begin(115200);
   Serial.print("start\n");
+
+  if (!EEPROM.begin(EEPROM_SIZE))
+  {
+    Serial.println("failed to initialise EEPROM"); delay(1000000);
+  }
   Wire.begin(23, 22, 400000);
   sendToAllSet();
 }
  
  int pre_time, process_time = 0;
+ int addr=0;
 void loop() 
 { 
   pre_time = millis();
@@ -325,13 +375,19 @@ void loop()
    for(int id = 0 ; id<8; id++){
     readLuxFromMux(id);
    }
-
+   addr = 4;
    for(int quad=0; quad<4; quad++){
-    extractLuxCalc(&snitch_dir[quad].top);
-    extractLuxCalc(&snitch_dir[quad].mid);
-    extractLuxCalc(&snitch_dir[quad].bottom);
+       Serial.printf("----Quad : %d-----\n", quad);
+//    extractLuxCalc(&snitch_dir[quad].top);
+//    extractLuxCalc(&snitch_dir[quad].mid);
+//    extractLuxCalc(&snitch_dir[quad].bottom);
+    addr = extractCaliLuxCalc(&snitch_dir[quad].mid,addr);
+    
+    addr = extractCaliLuxCalc(&snitch_dir[quad].top,addr);
+   
+    addr = extractCaliLuxCalc(&snitch_dir[quad].bottom,addr);
 
-    Serial.printf("----Quad : %d-----\n", quad);
+ 
     Serial.print("TOP SRC: ");
     Serial.print(snitch_dir[quad].top.polar_lux);
     Serial.print("  AMBI: "); 
@@ -345,8 +401,8 @@ void loop()
     Serial.print("  AMBI: "); 
     Serial.println(snitch_dir[quad].bottom.ambi_lux);
    }
-   process_time = millis()-pre_time;
-    Serial.println(process_time);
+//   process_time = millis()-pre_time;
+//    Serial.println(process_time);
    
   //DEBUG//
 //   for(int quad = 0; quad <4 ; quad++){
@@ -425,6 +481,3 @@ void readLuxFromMux(int id){
    }
    tcaDeSelect(id);
 }
-
-
-
