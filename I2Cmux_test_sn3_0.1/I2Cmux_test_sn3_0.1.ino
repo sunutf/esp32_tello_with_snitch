@@ -9,6 +9,8 @@
 #include "Wire.h"
 #include "Adafruit_TCS34725.h"
 #include "leviosa_lkup.h"
+#include "EEPROM.h"
+#define EEPROM_SIZE 256
 
 #define ID 6
 /*========================================================================*/
@@ -46,7 +48,8 @@ typedef struct{
 
 snitch_t snitch_dir[4];
 float raw_id[4];
-float surf_lux[12];
+float surf_src[12];
+float surf_amb[12];
 
 void snitchConMux2Table(int mux_id, int mux_ch, float lux){
   if(mux_id > 7) return ;
@@ -85,68 +88,60 @@ void snitchConMux2Table(int mux_id, int mux_ch, float lux){
 /*========================================================================*/
 //Leviosa part
 /*========================================================================*/
-
-//
-void extractLuxCalc(snitch_surf_t* surf_set){
+int extractCaliLuxCalc(snitch_surf_t* surf_set, int addr){
   int16_t diff_luxA;
   int16_t diff_luxB;
-  int16_t diff_luxC;
-  float src_lux[4];
-  float amb_lux[4];
-  
-  for(int deg =0; deg<4; deg++){
-    diff_luxA = surf_set->raw_lux[deg%4] - surf_set->raw_lux[(deg+1)%4];
-    diff_luxB = surf_set->raw_lux[(deg+1)%4] - surf_set->raw_lux[(deg+2)%4];
-    diff_luxC = surf_set->raw_lux[(deg+2)%4] - surf_set->raw_lux[deg%4];
-   
-    src_lux[deg] =   (float)(diff_luxC * diff_luxC);
-    src_lux[deg] +=  (float)((diff_luxA-diff_luxB)*(diff_luxA-diff_luxB));
-    src_lux[deg] =   sqrtf(src_lux[deg]);
-  
-    amb_lux[deg] = ((float)surf_set->raw_lux[deg%4]+(float)surf_set->raw_lux[(deg+2)%4]-src_lux[deg])/2;
-  }
-
-  surf_set->ambi_lux = (amb_lux[0]+amb_lux[1]+amb_lux[2]+amb_lux[3])/4.0f;
-  surf_set->polar_lux = (src_lux[0]+src_lux[1]+src_lux[2]+src_lux[3])/4.0f;
-
-
-}
-
-void extractLuxCaliCalc(snitch_surf_t* surf_set){
-  int16_t diff_luxA;
-  int16_t diff_luxB;
-  int16_t diff_luxC;
   float src_lux[4];
   float amb_lux[4];
   float A;
   float B;
-  
+  float theta[4];
+
+  theta[0] = EEPROM.readFloat(addr);
+  addr += 4;
+  theta[1] = EEPROM.readFloat(addr);
+  addr += 4;
+  theta[2] = EEPROM.readFloat(addr);
+  addr += 4;
+  theta[3] = EEPROM.readFloat(addr);
+  addr += 4;
+
+//  Serial.println("=======");
+//  for(int i =0; i<4; i++){
+//    Serial.print(i);
+//    Serial.print(" : ");
+//    Serial.println(theta[i]);
+//  }
+//  Serial.println();
+
+  A = (1-theta[3])/theta[1] - (1-theta[2])/theta[0];
+  B = theta[0]/(1-theta[2]) - theta[1]/(1-theta[3]);
   for(int deg =0; deg<1; deg++){
     diff_luxA = surf_set->raw_lux[deg%4] - surf_set->raw_lux[(deg+1)%4];
-    diff_luxB = surf_set->raw_lux[(deg+1)%4] - surf_set->raw_lux[(deg+2)%4];
-    diff_luxC = surf_set->raw_lux[(deg+2)%4] - surf_set->raw_lux[deg%4];
+    diff_luxB = surf_set->raw_lux[deg%4] - surf_set->raw_lux[(deg+2)%4];
+
+    A = 2*(diff_luxB/theta[1]-diff_luxA/theta[0])/A;
+    B = 2*(diff_luxB/(1-theta[3])-diff_luxA/(1-theta[2]))/B;
+    
+    surf_set->polar_lux = sqrtf(A*A + B*B);
+    surf_set->ambi_lux = (2*surf_set->raw_lux[deg%4]-surf_set->polar_lux-A)/2.0f;
    
-    A =   (float)(-2*(diff_luxA/0.993 + diff_luxC/(-0.056))/(-36.925));
-    B =   (float)(-2*(diff_luxA/1.117 + diff_luxC/1.998)/(0.939));
-    src_lux[deg] =   sqrtf(A*A + B*B);
-  
-    amb_lux[deg] = (float)(2*surf_set->raw_lux[deg%4]-src_lux[deg]-A)/2;
   }
-
-//  surf_set->ambi_lux = (amb_lux[0]+amb_lux[1]+amb_lux[2]+amb_lux[3])/4.0f;
-//  surf_set->polar_lux = (src_lux[0]+src_lux[1]+src_lux[2]+src_lux[3])/4.0f;
-
-    surf_set->ambi_lux = amb_lux[0];
-    surf_set->polar_lux = src_lux[0];
-
+  return addr;
 }
+
 
 typedef struct{
   float value;
   uint8_t index;
 }rank_lux_t;
 
-rank_lux_t rank_lux_top3[3] = {0,};
+typedef struct{
+  rank_lux_t src;
+  rank_lux_t amb;
+}rank_t;
+
+rank_t rank_lux_top3[3] = {0,};
 
 void leviosa_boardCalcCoord(float* lux_data_set)
 {
@@ -154,27 +149,55 @@ void leviosa_boardCalcCoord(float* lux_data_set)
   uint8_t largest_index[3];
   float *source_lux = lux_data_set;
 
-  rank_lux_top3[0].value = rank_lux_top3[1].value = rank_lux_top3[2].value = 0;
 
-  for(uint8_t i = 0; i < 3; i++)
+  rank_lux_top3[0].src.value = rank_lux_top3[1].src.value = rank_lux_top3[2].src.value = 0;
+  rank_lux_top3[0].amb.value = rank_lux_top3[1].amb.value = rank_lux_top3[2].amb.value = 0;
+  
+  if(source_lux == surf_src)
   {
-    float max = 0;
-    uint8_t index = 0;
-
-    for(uint8_t id = 0; id < 12; id++)
+    for(uint8_t i = 0; i < 3; i++)
     {
-      float cur_source = source_lux[id];
-      if(cur_source < 50 ) cur_source = 0;
-      if(max < cur_source && cur_source != rank_lux_top3[0].value && cur_source != rank_lux_top3[1].value && cur_source != rank_lux_top3[2].value)
+      float max = 0;
+      uint8_t index = 255;
+  
+      for(uint8_t id = 0; id < 12; id++)
       {
-        max = cur_source;
-        index = id;
+        float cur_source = source_lux[id];
+        if(cur_source < 50 ) cur_source = 0;
+        if(max < cur_source && cur_source != rank_lux_top3[0].src.value && cur_source != rank_lux_top3[1].src.value && cur_source != rank_lux_top3[2].src.value)
+        {
+          max = cur_source;
+          index = id;
+        }
       }
+      rank_lux_top3[i].src.value = max;
+      rank_lux_top3[i].src.index = index;
     }
-    rank_lux_top3[i].value = max;
-    rank_lux_top3[i].index = index;
   }
+  else if(source_lux == surf_amb) 
+  {
+    for(uint8_t i = 0; i < 3; i++)
+    {
+      float max = 0;
+      uint8_t index = 255;
+  
+      for(uint8_t id = 0; id < 12; id++)
+      {
+        float cur_source = source_lux[id];
+        if(cur_source < 50 ) cur_source = 0;
+        if(max < cur_source && cur_source != rank_lux_top3[0].amb.value && cur_source != rank_lux_top3[1].amb.value && cur_source != rank_lux_top3[2].amb.value)
+        {
+          max = cur_source;
+          index = id;
+        }
+      }
+      rank_lux_top3[i].amb.value = max;
+      rank_lux_top3[i].amb.index = index;
+    }
+  }
+
 }
+
 /*========================================================================*/
 //TCS34725 - Lux Sensor
 /*========================================================================*/
@@ -381,88 +404,78 @@ void setup()
   //Wire.begin();
   Serial.begin(115200);
   Serial.print("start\n");
+
+  if (!EEPROM.begin(EEPROM_SIZE))
+  {
+    Serial.println("failed to initialise EEPROM"); delay(1000000);
+  }
   Wire.begin(23, 22, 400000);
   sendToAllSet();
 }
  
  int pre_time, process_time = 0;
+ int addr=0;
 void loop() 
 { 
   pre_time = millis();
   delay(10);
-   for(int id = 0 ; id<8; id++){
+  for(int id = 0 ; id<8; id++){
     readLuxFromMux(id);
-   }
+  }
 
-//   int quad = ID/3;
-//   readLuxFromID(ID);
-//   switch(ID%3){
-//      case 0:
-//        extractLuxCaliCalc(&snitch_dir[quad].mid);
-//        Serial.print("MID SRC: ");
-//        Serial.print(snitch_dir[quad].mid.polar_lux);
-//        Serial.print("  AMBI: "); 
-//        Serial.print(snitch_dir[quad].mid.ambi_lux);
-//        Serial.print("  Dist: "); 
-//        Serial.println(lkup_tblGetDist(snitch_dir[quad].mid.polar_lux));
-//        break;
-//
-//      case 1:
-//        extractLuxCaliCalc(&snitch_dir[quad].bottom);
-//        Serial.print("BOT SRC: ");
-//        Serial.print(snitch_dir[quad].bottom.polar_lux);
-//        Serial.print("  AMBI: "); 
-//        Serial.print(snitch_dir[quad].bottom.ambi_lux);
-//        Serial.print("  Dist: "); 
-//        Serial.println(lkup_tblGetDist(snitch_dir[quad].bottom.polar_lux));
-//        break;
-//
-//      case 2:
-//        extractLuxCaliCalc(&snitch_dir[quad].top);
-//        Serial.print("TOP SRC: ");
-//        Serial.print(snitch_dir[quad].top.polar_lux);
-//        Serial.print("  AMBI: "); 
-//        Serial.println(snitch_dir[quad].top.ambi_lux);
-//        Serial.print("  Dist: "); 
-//        Serial.println(lkup_tblGetDist(snitch_dir[quad].top.polar_lux));
-//        
-//        break;
-//   }
-   
-   
-
+   addr = 4;
    for(int quad=0; quad<4; quad++){
-    extractLuxCalc(&snitch_dir[quad].top);
-    extractLuxCalc(&snitch_dir[quad].mid);
-    extractLuxCalc(&snitch_dir[quad].bottom);
+      Serial.printf("----Quad : %d-----\n", quad);
+      //    extractLuxCalc(&snitch_dir[quad].top);
+      //    extractLuxCalc(&snitch_dir[quad].mid);
+      //    extractLuxCalc(&snitch_dir[quad].bottom);
+      
+      addr = extractCaliLuxCalc(&snitch_dir[quad].mid,addr);
+      addr = extractCaliLuxCalc(&snitch_dir[quad].top,addr);
+      addr = extractCaliLuxCalc(&snitch_dir[quad].bottom,addr);
+      
+      Serial.print("TOP SRC: ");
+      Serial.print(snitch_dir[quad].top.polar_lux);
+      Serial.print("  AMBI: "); 
+      Serial.println(snitch_dir[quad].top.ambi_lux);
+      Serial.print("MID SRC: ");
+      Serial.print(snitch_dir[quad].mid.polar_lux);
+      Serial.print("  AMBI: "); 
+      Serial.println(snitch_dir[quad].mid.ambi_lux);
+      Serial.print("BOT SRC: ");
+      Serial.print(snitch_dir[quad].bottom.polar_lux);
+      Serial.print("  AMBI: "); 
+      Serial.println(snitch_dir[quad].bottom.ambi_lux);
+      
+      surf_src[quad*3] = snitch_dir[quad].mid.polar_lux;
+      surf_src[(quad*3 + 1)] = snitch_dir[quad].top.polar_lux;
+      surf_src[(quad*3 + 2)] = snitch_dir[quad].bottom.polar_lux;
 
-    Serial.printf("----Quad : %d-----\n", quad);
-    Serial.print("TOP SRC: ");
-    Serial.print(snitch_dir[quad].top.polar_lux);
-    Serial.print("  AMBI: "); 
-    Serial.println(snitch_dir[quad].top.ambi_lux);
-    Serial.print("MID SRC: ");
-    Serial.print(snitch_dir[quad].mid.polar_lux);
-    Serial.print("  AMBI: "); 
-    Serial.println(snitch_dir[quad].mid.ambi_lux);
-    Serial.print("BOT SRC: ");
-    Serial.print(snitch_dir[quad].bottom.polar_lux);
-    Serial.print("  AMBI: "); 
-    Serial.println(snitch_dir[quad].bottom.ambi_lux);
-    
-      surf_lux[quad*3] = snitch_dir[quad].mid.polar_lux;
-      surf_lux[(quad*3 + 1)] = snitch_dir[quad].top.polar_lux;
-      surf_lux[(quad*3 + 2)] = snitch_dir[quad].bottom.polar_lux;
+      surf_amb[quad*3] = snitch_dir[quad].mid.ambi_lux;
+      surf_amb[(quad*3 + 1)] = snitch_dir[quad].top.ambi_lux;
+      surf_amb[(quad*3 + 2)] = snitch_dir[quad].bottom.ambi_lux;
    }
-     leviosa_boardCalcCoord(surf_lux);
-     for(int i = 0; i<3; i++){
-       Serial.printf("  rank %d : ", i);
-       Serial.print(rank_lux_top3[i].index);
-       Serial.printf(" : ");
-       Serial.println(rank_lux_top3[i].value);
-     }
+   
+   leviosa_boardCalcCoord(surf_src);
+   for(int i = 0; i<3; i++){
+     Serial.printf("  rank %d : ", i);
+     Serial.print(rank_lux_top3[i].src.index);
+     Serial.printf(" : ");
+     Serial.println(rank_lux_top3[i].src.value);
+   }
+   Serial.println("===================");
+   leviosa_boardCalcCoord(surf_amb);
+   for(int i = 0; i<3; i++){
+     Serial.printf("  rank %d : ", i);
+     Serial.print(rank_lux_top3[i].amb.index);
+     Serial.printf(" : ");
+     Serial.println(rank_lux_top3[i].amb.value);
+   }
+   Serial.println("\n\n");
+   
    process_time = millis()-pre_time;
-    Serial.println(process_time);
+   Serial.println(process_time);
+
    
   //DEBUG//
 //   for(int quad = 0; quad <4 ; quad++){
@@ -543,6 +556,7 @@ void readLuxFromMux(int id)
    tcaDeSelect(id);
 }
 
+
 void readLuxFromID(int id)
 {
    int mux_id = 2*(id/3);
@@ -588,5 +602,4 @@ void readLuxFromID(int id)
       break;
    }
 }
-
 
