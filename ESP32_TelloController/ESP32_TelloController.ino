@@ -17,8 +17,8 @@
 #define CMD_SNITCH_SERIAL Serial2
 // -- literal
 // pin
-const int buttonPin = 13;
-const int ledPin = 12;
+const int buttonPin = 12;
+const int ledPin = 13;
 
 // WiFi - AP mode (for self)
 String ssidAp = "TELLO-D30D28";
