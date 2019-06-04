@@ -1,3 +1,4 @@
+
 // --
 // Tello controller for ESP32
 // written by bishi 2018.04.06
@@ -20,7 +21,7 @@ const int buttonPin = 13;
 const int ledPin = 12;
 
 // WiFi - AP mode (for self)
-String ssidAp = "TELLO-AA0558";
+String ssidAp = "TELLO-D30D28";
 String passwordAp = "0000";
 const IPAddress ipAp(192, 168, 4, 1);
 const IPAddress gatewayAp = ipAp;
@@ -29,7 +30,7 @@ const int udpPortAp = 1060;
 const int receiveBufferLen = 64;
 
 // WiFi - Client mode (for Tello)
-String ssidTello = "TELLO-AA0558";  // overridden later
+String ssidTello = "TELLO-D30D28";  // overridden later
 String passwordTello = "0000";  // overridden later
 String ipTello = "192.168.10.1";
 const int udpPortTello = 8889;
