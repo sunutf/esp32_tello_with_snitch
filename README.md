@@ -1,5 +1,5 @@
 # esp32_tello_with_snitch
-control tello by using esp32 with snitch
+control tello using esp32
 
 if you don't have esp32-arduino IDE, you need to follow installation steps.
 http://www.hardcopyworld.com/ngine/aduino/index.php/archives/3008
